@@ -10,6 +10,7 @@ import time
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import json
+from google.api_core.exceptions import NotFound
 
 # ------------- Config -------------
 st.set_page_config(
@@ -26,18 +27,21 @@ try:
         # Using Streamlit secrets
         PROJECT_ID = st.secrets["gcp_service_account"]["project_id"]
         SERVICE_ACCOUNT_INFO = dict(st.secrets["gcp_service_account"])
-        DATASET_ID = st.secrets.get("gcp_dataset_id", "fsm")
+        DATASET_ID = st.secrets.get("gcp_dataset_id", "fsm_dataset")  # Changed to fsm_dataset
+        DATASET_LOCATION = st.secrets.get("gcp_dataset_location", "US")
     else:
         # Fallback to environment variables (for local testing)
         import os
-        PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "your-project-id")
+        PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "fsm-db")
         SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GCP_SERVICE_ACCOUNT", "{}"))
-        DATASET_ID = os.environ.get("GCP_DATASET_ID", "fsm")
+        DATASET_ID = os.environ.get("GCP_DATASET_ID", "fsm_dataset")  # Changed to fsm_dataset
+        DATASET_LOCATION = os.environ.get("GCP_DATASET_LOCATION", "US")
 except Exception as e:
     st.error(f"Error loading configuration: {str(e)}")
-    PROJECT_ID = "your-project-id"
+    PROJECT_ID = "fsm-db"
     SERVICE_ACCOUNT_INFO = {}
-    DATASET_ID = "fsm"
+    DATASET_ID = "fsm_dataset"  # Changed to fsm_dataset
+    DATASET_LOCATION = "US"
 
 # ------------- BigQuery Client Initialization -------------
 def get_bigquery_client():
@@ -47,11 +51,11 @@ def get_bigquery_client():
                 SERVICE_ACCOUNT_INFO,
                 scopes=["https://www.googleapis.com/auth/cloud-platform"],
             )
-            client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+            client = bigquery.Client(credentials=credentials, project=PROJECT_ID, location=DATASET_LOCATION)
             return client
         else:
             # Try using default credentials (works on Google Cloud)
-            client = bigquery.Client(project=PROJECT_ID)
+            client = bigquery.Client(project=PROJECT_ID, location=DATASET_LOCATION)
             return client
     except Exception as e:
         st.error(f"Error initializing BigQuery client: {str(e)}")
@@ -119,6 +123,18 @@ def create_tables_if_not_exist():
     if client is None:
         st.sidebar.error("Failed to initialize BigQuery client")
         return
+
+    # First, check if dataset exists, create it if not
+    dataset_id = f"{PROJECT_ID}.{DATASET_ID}"
+    try:
+        client.get_dataset(dataset_id)
+        st.sidebar.success(f"Dataset {DATASET_ID} exists")
+    except NotFound:
+        st.sidebar.info(f"Dataset {DATASET_ID} not found, creating it...")
+        dataset = bigquery.Dataset(dataset_id)
+        dataset.location = DATASET_LOCATION
+        dataset = client.create_dataset(dataset, timeout=30)
+        st.sidebar.success(f"Dataset {DATASET_ID} created successfully")
 
     # Create state_licence table if not exists
     state_table_id = f"{PROJECT_ID}.{DATASET_ID}.state_licence"
