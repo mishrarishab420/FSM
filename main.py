@@ -294,57 +294,6 @@ def process_zip_file(uploaded_zip, table_name):
     
     return total, successful_files
 
-# ------------- Enhanced PDF Export -------------
-class EnhancedPDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'Food Safety Management System - Data Export', 0, 1, 'C')
-        self.ln(5)
-    
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-
-def df_to_pdf_bytes(df: pd.DataFrame, title="Results"):
-    pdf = EnhancedPDF(orientation="L", unit="mm", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    
-    # Title
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, title, 0, 1, 'C')
-    pdf.ln(10)
-    
-    # Summary
-    pdf.set_font("Arial", '', 10)
-    pdf.cell(0, 8, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1)
-    pdf.cell(0, 8, f"Total records: {len(df)}", 0, 1)
-    pdf.ln(5)
-    
-    # Table
-    pdf.set_font("Arial", 'B', 8)
-    col_width = pdf.w / (len(df.columns) + 1)  # Dynamic width based on column count
-    
-    # Header
-    for col in df.columns:
-        pdf.cell(col_width, 8, str(col)[:20], 1, 0, 'C')
-    pdf.ln()
-    
-    # Rows
-    pdf.set_font("Arial", '', 7)
-    for _, row in df.iterrows():
-        for col in df.columns:
-            value = str(row[col]) if pd.notna(row[col]) else ""
-            pdf.cell(col_width, 6, value[:25], 1, 0, 'C')
-        pdf.ln()
-        
-        # Page break check
-        if pdf.get_y() > pdf.h - 20:
-            pdf.add_page()
-    
-    return pdf.output(dest="S").encode("latin1")
-
 # ------------- Enhanced Data Upload Page -------------
 def data_upload_page():
     st.header("📤 Data Upload Center")
