@@ -5,7 +5,6 @@ import zipfile
 import io
 import re
 from datetime import datetime
-from fpdf import FPDF
 import hashlib
 import time
 
