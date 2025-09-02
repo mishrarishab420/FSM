@@ -25,23 +25,24 @@ st.set_page_config(
 try:
     if 'gcp_service_account' in st.secrets:
         # Using Streamlit secrets
-        PROJECT_ID = st.secrets["gcp_service_account"]["project_id"]
-        SERVICE_ACCOUNT_INFO = dict(st.secrets["gcp_service_account"])
-        DATASET_ID = st.secrets.get("gcp_dataset_id", "fsm_dataset")  # Changed to fsm_dataset
-        DATASET_LOCATION = st.secrets.get("gcp_dataset_location", "asia-south1")
+        SERVICE_ACCOUNT_INFO = dict(st.secrets['gcp_service_account'])
+        # Allow simple overrides for fresh project/dataset without code changes
+        PROJECT_ID = st.secrets.get('gcp_project_id', SERVICE_ACCOUNT_INFO.get('project_id', 'fsm-db'))
+        DATASET_ID = st.secrets.get('gcp_dataset_id', 'fsm_dataset')
+        DATASET_LOCATION = st.secrets.get('gcp_dataset_location', 'asia-south1')
     else:
         # Fallback to environment variables (for local testing)
         import os
-        PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "fsm-db")
-        SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GCP_SERVICE_ACCOUNT", "{}"))
-        DATASET_ID = os.environ.get("GCP_DATASET_ID", "fsm_dataset")  # Changed to fsm_dataset
-        DATASET_LOCATION = os.environ.get("GCP_DATASET_LOCATION", "asia-south1")
+        SERVICE_ACCOUNT_INFO = json.loads(os.environ.get('GCP_SERVICE_ACCOUNT', '{}'))
+        PROJECT_ID = os.environ.get('GCP_PROJECT_ID', SERVICE_ACCOUNT_INFO.get('project_id', 'fsm-db'))
+        DATASET_ID = os.environ.get('GCP_DATASET_ID', 'fsm_dataset')
+        DATASET_LOCATION = os.environ.get('GCP_DATASET_LOCATION', 'asia-south1')
 except Exception as e:
     st.error(f"Error loading configuration: {str(e)}")
-    PROJECT_ID = "fsm-db"
     SERVICE_ACCOUNT_INFO = {}
-    DATASET_ID = "fsm_dataset"  # Changed to fsm_dataset
-    DATASET_LOCATION = "asia-south1"
+    PROJECT_ID = 'fsm-db'
+    DATASET_ID = 'fsm_dataset'
+    DATASET_LOCATION = 'asia-south1'
 
 # ------------- BigQuery Client Initialization -------------
 def get_bigquery_client():
@@ -125,18 +126,15 @@ def create_tables_if_not_exist():
         return
 
     # First, check if dataset exists, create it if not, and ensure correct location
-    dataset_ref = bigquery.Dataset(f"{PROJECT_ID}.{DATASET_ID}")
-    dataset_ref.location = DATASET_LOCATION
+    dataset_id_str = f"{PROJECT_ID}.{DATASET_ID}"
     try:
-        dataset = client.get_dataset(dataset_ref)
-        # st.write(f"Dataset {DATASET_ID} exists")
+        client.get_dataset(dataset_id_str)
     except NotFound:
-        # st.write(f"Dataset {DATASET_ID} not found, creating it...")
         try:
-            dataset = client.create_dataset(dataset_ref, timeout=30)
-            # st.write(f"Dataset {DATASET_ID} created successfully")
-        except Exception as e:
-            # st.write(f"Failed to create dataset: {str(e)}")
+            ds = bigquery.Dataset(dataset_id_str)
+            ds.location = DATASET_LOCATION
+            client.create_dataset(ds, exists_ok=True, timeout=30)
+        except Exception:
             return
 
     # Create state_licence table if not exists
@@ -219,7 +217,11 @@ def ensure_columns(df: pd.DataFrame, expected_cols):
             elif expected_cols[target_col] == "DATE":
                 df2[target_col] = pd.to_datetime(df[source_col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
             elif expected_cols[target_col] == "STRING":
-                df2[target_col] = df[source_col].astype(str).replace({"nan": None, "None": None})
+                ser = df[source_col]
+                # Convert to string, strip whitespace, and normalize empties to None
+                ser = ser.astype(str).str.strip()
+                ser = ser.replace({"": None, "nan": None, "None": None, "NaT": None})
+                df2[target_col] = ser
             else:
                 df2[target_col] = df[source_col]
         else:
@@ -240,14 +242,16 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
             schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
+        # Final normalization to ensure PyArrow-friendly types
         for col, col_type in expected_cols.items():
             if col in df_fixed.columns:
-                if col_type == "STRING":
-                    df_fixed[col] = df_fixed[col].astype(str).replace({"nan": None, "None": None})
-                elif col_type == "NUMERIC":
-                    df_fixed[col] = pd.to_numeric(df_fixed[col], errors="coerce").astype("float64")
-                elif col_type == "DATE":
-                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+                if col_type == 'NUMERIC':
+                    df_fixed[col] = pd.to_numeric(df_fixed[col], errors='coerce').astype('float64')
+                elif col_type == 'DATE':
+                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors='coerce', dayfirst=True).dt.date
+                elif col_type == 'STRING':
+                    s = df_fixed[col].astype(object)
+                    df_fixed[col] = s.where(~s.isin(['', 'nan', 'None', 'NaT']), None)
         job = client.load_table_from_dataframe(df_fixed, table_id, job_config=job_config)
         job.result()
         return len(df_fixed)
