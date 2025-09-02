@@ -358,6 +358,16 @@ def process_zip_file(uploaded_zip, table_name):
 
     return total, successful_files
 
+def format_count(n):
+    if n >= 10_000_000:  # 1 Cr
+        return f"{n/10_000_000:.1f} Cr"
+    elif n >= 100_000:   # 1 Lakh
+        return f"{n/100_000:.1f} L"
+    elif n >= 1000:      # 1 Thousand
+        return f"{n/1000:.1f} K"
+    else:
+        return str(n)
+
 # ------------- Enhanced Data Upload Page -------------
 def data_upload_page():
     st.header("📤 Data Upload Center")
@@ -366,12 +376,12 @@ def data_upload_page():
     col1, col2 = st.columns(2)
     with col1:
         state_count, _ = get_table_stats("state_licence")
-        st.metric("State Licence Records", state_count)
+        st.metric("State Licence Records", format_count(state_count))
         st.caption("Last update tracking disabled")
 
     with col2:
         reg_count, _ = get_table_stats("registration")
-        st.metric("Registration Records", reg_count)
+        st.metric("Registration Records", format_count(reg_count))
         st.caption("Last update tracking disabled")
 
     st.markdown("---")
