@@ -122,22 +122,22 @@ def create_tables_if_not_exist():
     # Ensure BigQuery client is initialized first
     client = get_bigquery_client()
     if client is None:
-        st.sidebar.error("Failed to initialize BigQuery client")
+        st.write("Failed to initialize BigQuery client")
         return
 
     # First, check if dataset exists, create it if not, and ensure correct location
     dataset_ref = bigquery.Dataset(f"{PROJECT_ID}.{DATASET_ID}")
     dataset_ref.location = DATASET_LOCATION
     try:
-        dataset = client.get_dataset(dataset_ref.dataset_id)
-        st.sidebar.success(f"Dataset {DATASET_ID} exists")
+        dataset = client.get_dataset(dataset_ref)
+        st.write(f"Dataset {DATASET_ID} exists")
     except NotFound:
-        st.sidebar.info(f"Dataset {DATASET_ID} not found, creating it...")
+        st.write(f"Dataset {DATASET_ID} not found, creating it...")
         try:
             dataset = client.create_dataset(dataset_ref, timeout=30)
-            st.sidebar.success(f"Dataset {DATASET_ID} created successfully")
+            st.write(f"Dataset {DATASET_ID} created successfully")
         except Exception as e:
-            st.sidebar.error(f"Failed to create dataset: {str(e)}")
+            st.write(f"Failed to create dataset: {str(e)}")
             return
 
     # Create state_licence table if not exists
@@ -146,9 +146,9 @@ def create_tables_if_not_exist():
     state_table = bigquery.Table(state_table_id, schema=state_schema)
     try:
         client.create_table(state_table, exists_ok=True)
-        st.sidebar.success("State licence table verified/created")
+        st.write("State licence table verified/created")
     except Exception as e:
-        st.sidebar.error(f"Error creating state_licence table: {str(e)}")
+        st.write(f"Error creating state_licence table: {str(e)}")
 
     # Create registration table if not exists
     reg_table_id = f"{PROJECT_ID}.{DATASET_ID}.registration"
@@ -156,9 +156,9 @@ def create_tables_if_not_exist():
     reg_table = bigquery.Table(reg_table_id, schema=reg_schema)
     try:
         client.create_table(reg_table, exists_ok=True)
-        st.sidebar.success("Registration table verified/created")
+        st.write("Registration table verified/created")
     except Exception as e:
-        st.sidebar.error(f"Error creating registration table: {str(e)}")
+        st.write(f"Error creating registration table: {str(e)}")
 
 # Call table creation function
 create_tables_if_not_exist()
@@ -240,8 +240,11 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
 
     # Convert date columns to proper format for BigQuery
     for col in df_fixed.columns:
-        if expected_cols.get(col) in ["DATE", "TIMESTAMP"] and pd.api.types.is_datetime64_any_dtype(df_fixed[col]):
-            df_fixed[col] = df_fixed[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+        if pd.api.types.is_datetime64_any_dtype(df_fixed[col]):
+            if expected_cols.get(col) == "DATE":
+                df_fixed[col] = df_fixed[col].dt.strftime('%Y-%m-%d')
+            elif expected_cols.get(col) == "TIMESTAMP":
+                df_fixed[col] = df_fixed[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
     
