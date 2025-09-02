@@ -28,20 +28,20 @@ try:
         PROJECT_ID = st.secrets["gcp_service_account"]["project_id"]
         SERVICE_ACCOUNT_INFO = dict(st.secrets["gcp_service_account"])
         DATASET_ID = st.secrets.get("gcp_dataset_id", "fsm_dataset")  # Changed to fsm_dataset
-        DATASET_LOCATION = st.secrets.get("gcp_dataset_location", "US")
+        DATASET_LOCATION = st.secrets.get("gcp_dataset_location", "asia-south1")
     else:
         # Fallback to environment variables (for local testing)
         import os
         PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "fsm-db")
         SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GCP_SERVICE_ACCOUNT", "{}"))
         DATASET_ID = os.environ.get("GCP_DATASET_ID", "fsm_dataset")  # Changed to fsm_dataset
-        DATASET_LOCATION = os.environ.get("GCP_DATASET_LOCATION", "US")
+        DATASET_LOCATION = os.environ.get("GCP_DATASET_LOCATION", "asia-south1")
 except Exception as e:
     st.error(f"Error loading configuration: {str(e)}")
     PROJECT_ID = "fsm-db"
     SERVICE_ACCOUNT_INFO = {}
     DATASET_ID = "fsm_dataset"  # Changed to fsm_dataset
-    DATASET_LOCATION = "US"
+    DATASET_LOCATION = "asia-south1"
 
 # ------------- BigQuery Client Initialization -------------
 def get_bigquery_client():
