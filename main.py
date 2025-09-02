@@ -375,14 +375,12 @@ def data_upload_page():
     # Display current statistics
     col1, col2 = st.columns(2)
     with col1:
-        state_count, _ = get_table_stats("state_licence")
-        st.metric("State Licence Records", format_count(state_count))
-        st.caption("Last update tracking disabled")
+        state_count, state_latest = get_table_stats("state_licence")
+        st.metric("State Licence Records", format_count(state_count), f"Last update: {state_latest[:10] if state_latest else 'Never'}")
 
     with col2:
-        reg_count, _ = get_table_stats("registration")
-        st.metric("Registration Records", format_count(reg_count))
-        st.caption("Last update tracking disabled")
+        reg_count, reg_latest = get_table_stats("registration")
+        st.metric("Registration Records", format_count(reg_count), f"Last update: {reg_latest[:10] if reg_latest else 'Never'}")
 
     st.markdown("---")
 
