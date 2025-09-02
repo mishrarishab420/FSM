@@ -220,7 +220,20 @@ def ensure_columns(df: pd.DataFrame, expected_cols):
                 # Ensure dtype is float64 for BigQuery compatibility
                 df2[target_col] = df2[target_col].astype("float64")
             elif expected_cols[target_col] in ["DATE", "TIMESTAMP"]:
-                df2[target_col] = pd.to_datetime(df[source_col], errors='coerce')
+                # Handle date/time conversion more carefully
+                try:
+                    # First try standard conversion
+                    temp_col = pd.to_datetime(df[source_col], errors='coerce', dayfirst=True)
+                    
+                    # For DATE fields, extract date part only
+                    if expected_cols[target_col] == "DATE":
+                        df2[target_col] = temp_col.dt.date
+                    else:  # TIMESTAMP
+                        df2[target_col] = temp_col
+                        
+                except Exception as e:
+                    st.warning(f"Could not convert {source_col} to {expected_cols[target_col]}: {str(e)}")
+                    df2[target_col] = None
             else:
                 df2[target_col] = df[source_col].astype(str).replace({"nan": None, "None": None})
         else:
@@ -240,17 +253,23 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
     if "source_filename" not in df_fixed.columns:
         df_fixed["source_filename"] = "manual_upload"
 
-    df_fixed["ingestion_timestamp"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    df_fixed["ingestion_timestamp"] = datetime.utcnow()
 
     # Force conversion of DATE, TIMESTAMP, and STRING columns
     for col, col_type in expected_cols.items():
         if col in df_fixed.columns:
-            if col_type == "DATE":
-                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
-            elif col_type == "TIMESTAMP":
-                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d %H:%M:%S")
-            elif col_type == "STRING":
-                df_fixed[col] = df_fixed[col].astype(str).replace({"nan": None, "None": None})
+            try:
+                if col_type == "DATE":
+                    # Convert to date object (not string)
+                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.date
+                elif col_type == "TIMESTAMP":
+                    # Convert to datetime object (not string)
+                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True)
+                elif col_type == "STRING":
+                    df_fixed[col] = df_fixed[col].astype(str).replace({"nan": None, "None": None})
+            except Exception as e:
+                st.warning(f"Error converting column {col}: {str(e)}")
+                df_fixed[col] = None
 
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
     
