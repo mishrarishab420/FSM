@@ -66,7 +66,7 @@ def get_bigquery_client():
 STATE_COLS = {
     "FBO NAME": "STRING", "ADDRESS": "STRING", "DISTT": "STRING", "STATE": "STRING",
     "KOB": "STRING", "CONTACT": "STRING", "RESPONSIBLE MO": "STRING", "Y": "STRING",
-    "REF ID": "STRING", "AMOUNT": "NUMERIC", "LICENSE": "STRING", "COMPLIANCE MO": "STRING",
+    "REF ID": "STRING", "AMOUNT": "FLOAT64", "LICENSE": "STRING", "COMPLIANCE MO": "STRING",
     "EXPIRY": "DATE"
 }
 
@@ -77,8 +77,8 @@ REG_COLS = {
     "contactMobile": "STRING", "contactPerson": "STRING", "displayRefId": "STRING",
     "kobNameDetails": "STRING", "productName": "STRING", "expiryDate": "DATE",
     "issuedDate": "DATE", "talukName": "STRING", "pincodePremises": "STRING",
-    "applicantMobileNo": "STRING", "noOfYears": "NUMERIC", "statusId": "STRING",
-    "appType": "STRING", "amount": "NUMERIC"
+    "applicantMobileNo": "STRING", "noOfYears": "FLOAT64", "statusId": "STRING",
+    "appType": "STRING", "amount": "FLOAT64"
 }
 
 def authenticate(username, password):
@@ -245,7 +245,7 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
         # Final normalization to ensure PyArrow-friendly types
         for col, col_type in expected_cols.items():
             if col in df_fixed.columns:
-                if col_type == 'NUMERIC':
+                if col_type in ('NUMERIC', 'FLOAT64', 'BIGNUMERIC'):
                     df_fixed[col] = pd.to_numeric(df_fixed[col], errors='coerce').astype('float64')
                 elif col_type == 'DATE':
                     df_fixed[col] = pd.to_datetime(df_fixed[col], errors='coerce', dayfirst=True).dt.date
