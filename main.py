@@ -63,22 +63,22 @@ def get_bigquery_client():
 
 # ------------- Enhanced Schemas with data types -------------
 STATE_COLS = {
-    "FBO NAME": "text", "ADDRESS": "text", "DISTT": "text", "STATE": "text", 
-    "KOB": "text", "CONTACT": "text", "RESPONSIBLE MO": "text", "Y": "text", 
-    "REF ID": "text", "AMOUNT": "numeric", "LICENSE": "text", "COMPLIANCE MO": "text", 
-    "EXPIRY": "date", "source_filename": "text", "ingestion_timestamp": "datetime"
+    "FBO NAME": "STRING", "ADDRESS": "STRING", "DISTT": "STRING", "STATE": "STRING", 
+    "KOB": "STRING", "CONTACT": "STRING", "RESPONSIBLE MO": "STRING", "Y": "STRING", 
+    "REF ID": "STRING", "AMOUNT": "NUMERIC", "LICENSE": "STRING", "COMPLIANCE MO": "STRING", 
+    "EXPIRY": "DATE", "source_filename": "STRING", "ingestion_timestamp": "TIMESTAMP"
 }
 
 REG_COLS = {
-    "refId": "text", "certificateNo": "text", "companyName": "text", 
-    "addressPremises": "text", "premiseVillageName": "text", 
-    "correspondenceDistrictName": "text", "stateName": "text", 
-    "contactMobile": "text", "contactPerson": "text", "displayRefId": "text", 
-    "kobNameDetails": "text", "productName": "text", "expiryDate": "date", 
-    "issuedDate": "date", "talukName": "text", "pincodePremises": "text", 
-    "applicantMobileNo": "text", "noOfYears": "numeric", "statusId": "text", 
-    "appType": "text", "amount": "numeric", "source_filename": "text", 
-    "ingestion_timestamp": "datetime"
+    "refId": "STRING", "certificateNo": "STRING", "companyName": "STRING", 
+    "addressPremises": "STRING", "premiseVillageName": "STRING", 
+    "correspondenceDistrictName": "STRING", "stateName": "STRING", 
+    "contactMobile": "STRING", "contactPerson": "STRING", "displayRefId": "STRING", 
+    "kobNameDetails": "STRING", "productName": "STRING", "expiryDate": "DATE", 
+    "issuedDate": "DATE", "talukName": "STRING", "pincodePremises": "STRING", 
+    "applicantMobileNo": "STRING", "noOfYears": "NUMERIC", "statusId": "STRING", 
+    "appType": "STRING", "amount": "NUMERIC", "source_filename": "STRING", 
+    "ingestion_timestamp": "TIMESTAMP"
 }
 
 def authenticate(username, password):
