@@ -63,22 +63,21 @@ def get_bigquery_client():
 
 # ------------- Enhanced Schemas with data types -------------
 STATE_COLS = {
-    "FBO NAME": "STRING", "ADDRESS": "STRING", "DISTT": "STRING", "STATE": "STRING", 
-    "KOB": "STRING", "CONTACT": "STRING", "RESPONSIBLE MO": "STRING", "Y": "STRING", 
-    "REF ID": "STRING", "AMOUNT": "NUMERIC", "LICENSE": "STRING", "COMPLIANCE MO": "STRING", 
-    "EXPIRY": "DATE", "source_filename": "STRING", "ingestion_timestamp": "TIMESTAMP"
+    "FBO NAME": "STRING", "ADDRESS": "STRING", "DISTT": "STRING", "STATE": "STRING",
+    "KOB": "STRING", "CONTACT": "STRING", "RESPONSIBLE MO": "STRING", "Y": "STRING",
+    "REF ID": "STRING", "AMOUNT": "NUMERIC", "LICENSE": "STRING", "COMPLIANCE MO": "STRING",
+    "EXPIRY": "DATE"
 }
 
 REG_COLS = {
-    "refId": "STRING", "certificateNo": "STRING", "companyName": "STRING", 
-    "addressPremises": "STRING", "premiseVillageName": "STRING", 
-    "correspondenceDistrictName": "STRING", "stateName": "STRING", 
-    "contactMobile": "STRING", "contactPerson": "STRING", "displayRefId": "STRING", 
-    "kobNameDetails": "STRING", "productName": "STRING", "expiryDate": "DATE", 
-    "issuedDate": "DATE", "talukName": "STRING", "pincodePremises": "STRING", 
-    "applicantMobileNo": "STRING", "noOfYears": "NUMERIC", "statusId": "STRING", 
-    "appType": "STRING", "amount": "NUMERIC", "source_filename": "STRING", 
-    "ingestion_timestamp": "TIMESTAMP"
+    "refId": "STRING", "certificateNo": "STRING", "companyName": "STRING",
+    "addressPremises": "STRING", "premiseVillageName": "STRING",
+    "correspondenceDistrictName": "STRING", "stateName": "STRING",
+    "contactMobile": "STRING", "contactPerson": "STRING", "displayRefId": "STRING",
+    "kobNameDetails": "STRING", "productName": "STRING", "expiryDate": "DATE",
+    "issuedDate": "DATE", "talukName": "STRING", "pincodePremises": "STRING",
+    "applicantMobileNo": "STRING", "noOfYears": "NUMERIC", "statusId": "STRING",
+    "appType": "STRING", "amount": "NUMERIC"
 }
 
 def authenticate(username, password):
@@ -212,24 +211,19 @@ def ensure_columns(df: pd.DataFrame, expected_cols):
     df2 = pd.DataFrame()
     for target_col in expected_cols.keys():
         source_col = mapping.get(target_col)
-
         if source_col and source_col in df.columns:
             # Convert data types based on schema
             if expected_cols[target_col].upper() == "NUMERIC":
                 df2[target_col] = pd.to_numeric(df[source_col], errors='coerce')
-                # Ensure dtype is float64 for BigQuery compatibility
                 df2[target_col] = df2[target_col].astype("float64")
             elif expected_cols[target_col] == "DATE":
                 df2[target_col] = pd.to_datetime(df[source_col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
-            elif expected_cols[target_col] == "TIMESTAMP":
-                df2[target_col] = pd.to_datetime(df[source_col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d %H:%M:%S")
             elif expected_cols[target_col] == "STRING":
                 df2[target_col] = df[source_col].astype(str).replace({"nan": None, "None": None})
             else:
                 df2[target_col] = df[source_col]
         else:
             df2[target_col] = None
-
     return df2
 
 def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
@@ -239,23 +233,13 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
         return 0
 
     df_fixed = ensure_columns(df, expected_cols)
-
-    # Add ingestion metadata
-    if "source_filename" not in df_fixed.columns:
-        df_fixed["source_filename"] = "manual_upload"
-    df_fixed["ingestion_timestamp"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Explicit schema from expected_cols
     schema = [bigquery.SchemaField(col, col_type) for col, col_type in expected_cols.items()]
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
-
     try:
         job_config = bigquery.LoadJobConfig(
             schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
-
-        # Force all object columns to string (safety)
         for col, col_type in expected_cols.items():
             if col in df_fixed.columns:
                 if col_type == "STRING":
@@ -264,12 +248,8 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
                     df_fixed[col] = pd.to_numeric(df_fixed[col], errors="coerce").astype("float64")
                 elif col_type == "DATE":
                     df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
-                elif col_type == "TIMESTAMP":
-                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d %H:%M:%S")
-
         job = client.load_table_from_dataframe(df_fixed, table_id, job_config=job_config)
-        job.result()  # Wait for completion
-
+        job.result()
         return len(df_fixed)
     except Exception as e:
         st.error(f"Error inserting data into BigQuery: {str(e)}")
@@ -294,15 +274,8 @@ def get_table_stats(table_name):
         count_query = f"SELECT COUNT(*) as count FROM `{table_id}`"
         count_result = client.query(count_query).result()
         count = list(count_result)[0]['count']
-
-        # Get latest timestamp
-        latest_query = f"SELECT MAX(ingestion_timestamp) as latest FROM `{table_id}`"
-        latest_result = client.query(latest_query).result()
-        latest = list(latest_result)[0]['latest']
-
-        return count, latest
+        return count, None
     except Exception as e:
-        # st.error(f"Error getting table stats: {str(e)}")
         return 0, None
 
 # ------------- Enhanced File Processing -------------
@@ -388,14 +361,14 @@ def data_upload_page():
     # Display current statistics
     col1, col2 = st.columns(2)
     with col1:
-        state_count, state_latest = get_table_stats("state_licence")
-        st.metric("State Licence Records", state_count, 
-                  f"Last update: {state_latest.strftime('%Y-%m-%d') if state_latest else 'Never'}")
+        state_count, _ = get_table_stats("state_licence")
+        st.metric("State Licence Records", state_count)
+        st.caption("Last update tracking disabled")
 
     with col2:
-        reg_count, reg_latest = get_table_stats("registration")
-        st.metric("Registration Records", reg_count,
-                  f"Last update: {reg_latest.strftime('%Y-%m-%d') if reg_latest else 'Never'}")
+        reg_count, _ = get_table_stats("registration")
+        st.metric("Registration Records", reg_count)
+        st.caption("Last update tracking disabled")
 
     st.markdown("---")
 
@@ -553,41 +526,27 @@ def search_page():
         # Quick filters
         st.markdown("**Quick Filters**")
         show_expired = st.checkbox("Show expired records only", value=False)
-        show_recent = st.checkbox("Show recent uploads (last 7 days)", value=False)
 
     # Advanced filters in expander
     with st.expander("🧩 Advanced Filters", expanded=False):
         cols = st.columns(3)
-
-        # Dynamic filter generation based on data
         filter_options = {}
-        exclude_cols = {"id", "source_filename", "ingestion_timestamp"}
+        exclude_cols = {"id"}
         available_cols = [c for c in sample.columns if c not in exclude_cols and sample[c].notna().any()]
-
-        for i, col in enumerate(available_cols[:9]):  # Limit to 9 filters for UI
+        for i, col in enumerate(available_cols[:9]):
             with cols[i % 3]:
                 unique_vals = sample[col].dropna().unique()
-                if len(unique_vals) < 50:  # Only show dropdown for reasonable number of values
+                if len(unique_vals) < 50:
                     selected = st.selectbox(f"Filter by {col}", [""] + sorted(unique_vals.tolist()))
                     if selected:
                         filter_options[col] = selected
                 else:
-                    # For columns with many values, use text input
                     filter_text = st.text_input(f"Filter {col} (text contains)")
                     if filter_text:
                         filter_options[col] = filter_text
-
         # Additional filter: Expiry date filter
         expiry_col = "EXPIRY" if table == "state_licence" else "expiryDate"
-        # Expiry date filter with no prefilled value, simpler label
         expiry_date_filter = st.date_input("Expiry", key="expiry_date_filter", value=None)
-
-        # Source and date filters with simpler labels and no prefilled date
-        col3, col4 = st.columns(2)
-        with col3:
-            source_filter = st.text_input("Source")
-        with col4:
-            date_filter = st.date_input("Date", key="ingestion_date", value=None)
 
     # Execute search
     if st.button("🚀 Execute Search", use_container_width=True):
@@ -595,87 +554,55 @@ def search_page():
             try:
                 where_conditions = []
                 params = {}
-
                 # Dual primary search
                 pk_conditions = []
                 for idx, term in enumerate(search_terms):
                     if term:
                         pk_conditions.append(f"`{primary_keys[idx]}` LIKE '%{term}%'")
-                
                 if len(pk_conditions) == 1:
                     where_conditions.append(pk_conditions[0])
                 elif len(pk_conditions) == 2:
-                    # If both entered, match both
                     where_conditions.append(f"({pk_conditions[0]} AND {pk_conditions[1]})")
-                # If neither, skip
-
                 # Quick filters
                 if show_expired:
                     expiry_col = "EXPIRY" if table == "state_licence" else "expiryDate"
                     where_conditions.append(f"`{expiry_col}` < CURRENT_DATE()")
-
-                if show_recent:
-                    where_conditions.append("`ingestion_timestamp` > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)")
-
                 # Advanced filters
                 for col, value in filter_options.items():
                     if isinstance(value, str) and "%" in value:
                         where_conditions.append(f"`{col}` LIKE '{value}'")
                     else:
                         where_conditions.append(f"`{col}` = '{value}'")
-
-                # Source filter
-                if source_filter:
-                    where_conditions.append(f"`source_filename` LIKE '%{source_filter}%'")
-
-                # Date filter
-                if date_filter is not None:
-                    where_conditions.append(f"DATE(`ingestion_timestamp`) = '{date_filter.strftime('%Y-%m-%d')}'")
-
                 # Expiry date filter
                 if expiry_date_filter is not None:
                     expiry_col = "EXPIRY" if table == "state_licence" else "expiryDate"
                     where_conditions.append(f"DATE(`{expiry_col}`) = '{expiry_date_filter.strftime('%Y-%m-%d')}'")
-
                 # Build query
                 where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
-                query = f'SELECT * FROM `{table_id}` WHERE {where_clause} ORDER BY `ingestion_timestamp` DESC LIMIT 5000'
-
+                query = f'SELECT * FROM `{table_id}` WHERE {where_clause} ORDER BY `{primary_keys[0]}` DESC LIMIT 5000'
                 df = client.query(query).to_dataframe()
-
                 if df.empty:
                     st.warning("No records found matching your criteria.")
                 else:
                     st.success(f"Found {len(df)} records")
-
-                    # Display results with tabs
                     tab1, tab2 = st.tabs(["📊 Data Table", "📈 Summary"])
-
                     with tab1:
                         st.dataframe(df, use_container_width=True, height=400)
-
                     with tab2:
                         st.subheader("Search Summary")
-                        col1, col2, col3 = st.columns(3)
+                        col1, col2 = st.columns(2)
                         with col1:
                             st.metric("Total Records", len(df))
                         with col2:
                             st.metric("Columns", len(df.columns))
-                        with col3:
-                            latest = df["ingestion_timestamp"].max() if "ingestion_timestamp" in df.columns else "N/A"
-                            st.metric("Latest Update", str(latest)[:10])
-
-                    # Export options
                     st.subheader("📤 Export Results")
                     export_col1, export_col2 = st.columns(2)
-
                     with export_col1:
                         csv = df.to_csv(index=False)
                         st.download_button("💾 Download CSV", csv,
                                           file_name=f"{table}_search_results.csv",
                                           mime="text/csv",
                                           use_container_width=True)
-
                     with export_col2:
                         try:
                             xlsx_bytes = io.BytesIO()
@@ -687,7 +614,6 @@ def search_page():
                                               use_container_width=True)
                         except Exception as e:
                             st.warning(f"XLSX export unavailable: {e}")
-
             except Exception as e:
                 st.error(f"Search error: {str(e)}")
 
