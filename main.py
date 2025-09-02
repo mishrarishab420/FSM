@@ -130,14 +130,14 @@ def create_tables_if_not_exist():
     dataset_ref.location = DATASET_LOCATION
     try:
         dataset = client.get_dataset(dataset_ref)
-        st.write(f"Dataset {DATASET_ID} exists")
+        # st.write(f"Dataset {DATASET_ID} exists")
     except NotFound:
-        st.write(f"Dataset {DATASET_ID} not found, creating it...")
+        # st.write(f"Dataset {DATASET_ID} not found, creating it...")
         try:
             dataset = client.create_dataset(dataset_ref, timeout=30)
-            st.write(f"Dataset {DATASET_ID} created successfully")
+            # st.write(f"Dataset {DATASET_ID} created successfully")
         except Exception as e:
-            st.write(f"Failed to create dataset: {str(e)}")
+            # st.write(f"Failed to create dataset: {str(e)}")
             return
 
     # Create state_licence table if not exists
@@ -146,9 +146,10 @@ def create_tables_if_not_exist():
     state_table = bigquery.Table(state_table_id, schema=state_schema)
     try:
         client.create_table(state_table, exists_ok=True)
-        st.write("State licence table verified/created")
+        # st.write("State licence table verified/created")
     except Exception as e:
-        st.write(f"Error creating state_licence table: {str(e)}")
+        # st.write(f"Error creating state_licence table: {str(e)}")
+        pass
 
     # Create registration table if not exists
     reg_table_id = f"{PROJECT_ID}.{DATASET_ID}.registration"
@@ -156,9 +157,10 @@ def create_tables_if_not_exist():
     reg_table = bigquery.Table(reg_table_id, schema=reg_schema)
     try:
         client.create_table(reg_table, exists_ok=True)
-        st.write("Registration table verified/created")
+        # st.write("Registration table verified/created")
     except Exception as e:
-        st.write(f"Error creating registration table: {str(e)}")
+        # st.write(f"Error creating registration table: {str(e)}")
+        pass
 
 # Call table creation function
 create_tables_if_not_exist()
@@ -267,25 +269,31 @@ def get_table_stats(table_name):
     """Get statistics about the table"""
     client = get_bigquery_client()
     if client is None:
-        st.error("Failed to initialize BigQuery client")
+        # st.error("Failed to initialize BigQuery client")
         return 0, None
 
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
-    
+
+    # Ensure dataset exists before querying
+    try:
+        client.get_dataset(f"{PROJECT_ID}.{DATASET_ID}")
+    except NotFound:
+        return 0, None
+
     try:
         # Get row count
         count_query = f"SELECT COUNT(*) as count FROM `{table_id}`"
         count_result = client.query(count_query).result()
         count = list(count_result)[0]['count']
-        
+
         # Get latest timestamp
         latest_query = f"SELECT MAX(ingestion_timestamp) as latest FROM `{table_id}`"
         latest_result = client.query(latest_query).result()
         latest = list(latest_result)[0]['latest']
-        
+
         return count, latest
     except Exception as e:
-        st.error(f"Error getting table stats: {str(e)}")
+        # st.error(f"Error getting table stats: {str(e)}")
         return 0, None
 
 # ------------- Enhanced File Processing -------------
