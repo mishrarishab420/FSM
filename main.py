@@ -242,13 +242,15 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
 
     df_fixed["ingestion_timestamp"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Force conversion of DATE and TIMESTAMP columns
+    # Force conversion of DATE, TIMESTAMP, and STRING columns
     for col, col_type in expected_cols.items():
         if col in df_fixed.columns:
             if col_type == "DATE":
-                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce").dt.strftime("%Y-%m-%d")
+                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
             elif col_type == "TIMESTAMP":
-                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+                df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d %H:%M:%S")
+            elif col_type == "STRING":
+                df_fixed[col] = df_fixed[col].astype(str).replace({"nan": None, "None": None})
 
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
     
