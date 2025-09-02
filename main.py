@@ -243,27 +243,37 @@ def insert_df_to_table(df: pd.DataFrame, table_name: str, expected_cols):
     # Add ingestion metadata
     if "source_filename" not in df_fixed.columns:
         df_fixed["source_filename"] = "manual_upload"
-
-    # Always set ingestion_timestamp as a properly formatted string timestamp
     df_fixed["ingestion_timestamp"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Explicit schema from expected_cols
+    schema = [bigquery.SchemaField(col, col_type) for col, col_type in expected_cols.items()]
     table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
-    
+
     try:
         job_config = bigquery.LoadJobConfig(
+            schema=schema,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
-        
-        job = client.load_table_from_dataframe(
-            df_fixed, table_id, job_config=job_config
-        )
-        job.result()  # Wait for the job to complete
-        
+
+        # Force all object columns to string (safety)
+        for col, col_type in expected_cols.items():
+            if col in df_fixed.columns:
+                if col_type == "STRING":
+                    df_fixed[col] = df_fixed[col].astype(str).replace({"nan": None, "None": None})
+                elif col_type == "NUMERIC":
+                    df_fixed[col] = pd.to_numeric(df_fixed[col], errors="coerce").astype("float64")
+                elif col_type == "DATE":
+                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+                elif col_type == "TIMESTAMP":
+                    df_fixed[col] = pd.to_datetime(df_fixed[col], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        job = client.load_table_from_dataframe(df_fixed, table_id, job_config=job_config)
+        job.result()  # Wait for completion
+
         return len(df_fixed)
     except Exception as e:
         st.error(f"Error inserting data into BigQuery: {str(e)}")
         return 0
-
 def get_table_stats(table_name):
     """Get statistics about the table"""
     client = get_bigquery_client()
