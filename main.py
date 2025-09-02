@@ -215,8 +215,10 @@ def ensure_columns(df: pd.DataFrame, expected_cols):
 
         if source_col and source_col in df.columns:
             # Convert data types based on schema
-            if expected_cols[target_col] == "NUMERIC":
+            if expected_cols[target_col].upper() == "NUMERIC":
                 df2[target_col] = pd.to_numeric(df[source_col], errors='coerce')
+                # Ensure dtype is float64 for BigQuery compatibility
+                df2[target_col] = df2[target_col].astype("float64")
             elif expected_cols[target_col] in ["DATE", "TIMESTAMP"]:
                 df2[target_col] = pd.to_datetime(df[source_col], errors='coerce')
             else:
