@@ -6,3 +6,5 @@ xlrd>=2.0.1
 numpy>=1.25.0
 python-dateutil>=2.8.2
 pytz>=2023.3
+db-dtypes
+google-auth
